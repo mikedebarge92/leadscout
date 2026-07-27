@@ -77,6 +77,7 @@ export async function getD1() {
 export async function saveLeads(owner: string, leads: StoredLead[]) {
   const db = await getD1();
   const now = new Date().toISOString();
+  await db.prepare("DELETE FROM leads WHERE owner = ? AND stage = 'New'").bind(owner).run();
   const statements = leads.map((lead) => db.prepare(`INSERT INTO leads
     (id, owner, name, category, area, rating, reviews, issue, score, phone, address, website, maps_url, reason, stage, x, y, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT stage FROM leads WHERE id = ? AND owner = ?), ?), ?, ?, ?, ?)
