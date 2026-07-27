@@ -36,3 +36,13 @@ export const settings = sqliteTable("settings", {
   minReviews: integer("min_reviews").notNull().default(10),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const apiCredentials = sqliteTable("api_credentials", {
+  owner: text("owner").notNull(),
+  service: text("service").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: text("iv").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.owner, table.service] }),
+]);

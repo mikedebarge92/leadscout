@@ -47,7 +47,10 @@ export default function LeadScout() {
   const [running, setRunning] = useState(false);
   const [minReviews, setMinReviews] = useState(10);
   const [deliveryEmail, setDeliveryEmail] = useState("");
-  const [status, setStatus] = useState({ googlePlaces: false, email: false, deliveryEmail: false, mode: "demo" });
+  const [googleKey, setGoogleKey] = useState("");
+  const [resendKey, setResendKey] = useState("");
+  const [connecting, setConnecting] = useState("");
+  const [status, setStatus] = useState({ googlePlaces: false, email: false, deliveryEmail: false, mode: "demo", vaultReady: false });
 
   useEffect(() => {
     Promise.all([
@@ -107,6 +110,34 @@ export default function LeadScout() {
     }
   }
 
+  async function connectService(service: "googlePlaces" | "resend") {
+    const key = service === "googlePlaces" ? googleKey : resendKey;
+    if (!key.trim()) {
+      setToast("Paste an API key first");
+      window.setTimeout(() => setToast(""), 2400);
+      return;
+    }
+    setConnecting(service);
+    try {
+      const response = await fetch("/api/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service, key }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Connection failed");
+      setStatus((current) => ({ ...current, [service === "googlePlaces" ? "googlePlaces" : "email"]: true, mode: service === "googlePlaces" ? "live" : current.mode }));
+      if (service === "googlePlaces") setGoogleKey(""); else setResendKey("");
+      setToast(`${service === "googlePlaces" ? "Google Places" : "Resend"} connected successfully`);
+      window.setTimeout(() => setToast(""), 2600);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Connection failed");
+      window.setTimeout(() => setToast(""), 3200);
+    } finally {
+      setConnecting("");
+    }
+  }
+
   const noWebsiteCount = leads.filter((lead) => lead.issue === "No website").length;
   const avgReviews = leads.length ? Math.round(leads.reduce((total, lead) => total + lead.reviews, 0) / leads.length) : 0;
 
@@ -154,6 +185,12 @@ export default function LeadScout() {
           <div><span>OUTDATED SITES</span><strong>{leads.length - noWebsiteCount}</strong><em>Needs redesign</em></div>
           <div><span>AVG. REVIEWS</span><strong>{avgReviews}</strong><em>Strong social proof</em></div>
         </section>
+
+        {!status.googlePlaces && <section className="setup-banner">
+          <div className="setup-icon">⌁</div>
+          <div><strong>Make LeadScout live</strong><p>Connect Google Places once, then search real businesses from this dashboard.</p></div>
+          <button onClick={() => setSettingsOpen(true)}>Connect API →</button>
+        </section>}
 
         <section className="workspace">
           <div className="map-panel">
@@ -245,18 +282,27 @@ export default function LeadScout() {
       {settingsOpen && <div className="modal-backdrop" onMouseDown={() => setSettingsOpen(false)}>
         <div className="modal compact" onMouseDown={(e) => e.stopPropagation()}>
           <button className="modal-close" onClick={() => setSettingsOpen(false)}>×</button>
-          <p className="eyebrow">CONNECTIONS & DELIVERY</p><h2>LeadScout settings</h2><p className="modal-copy">Live data and email keys stay encrypted on the server.</p>
+          <p className="eyebrow">CONNECTIONS & DELIVERY</p><h2>Make LeadScout live</h2><p className="modal-copy">Connect your accounts here. Keys are tested, encrypted, and never shown again.</p>
           <div className="connection-list">
             <div><span className={status.googlePlaces ? "connected" : ""}>{status.googlePlaces ? "✓" : "!"}</span><p><strong>Google Places</strong><small>{status.googlePlaces ? "Connected · live searches ready" : "Not connected · demo results only"}</small></p></div>
             <div><span className={status.email ? "connected" : ""}>{status.email ? "✓" : "!"}</span><p><strong>Resend email</strong><small>{status.email ? "Connected · delivery ready" : "Not connected · daily email paused"}</small></p></div>
           </div>
+          {!status.googlePlaces && <div className="credential-field">
+            <label>Google Places API key<input type="password" autoComplete="off" value={googleKey} onChange={(e) => setGoogleKey(e.target.value)} placeholder="AIza…" /></label>
+            <button onClick={() => connectService("googlePlaces")} disabled={connecting === "googlePlaces"}>{connecting === "googlePlaces" ? "Testing…" : "Connect"}</button>
+          </div>}
+          {!status.email && <div className="credential-field">
+            <label>Resend API key<input type="password" autoComplete="off" value={resendKey} onChange={(e) => setResendKey(e.target.value)} placeholder="re_…" /></label>
+            <button onClick={() => connectService("resend")} disabled={connecting === "resend"}>{connecting === "resend" ? "Testing…" : "Connect"}</button>
+          </div>}
+          {(status.googlePlaces || status.email) && <div className="security-note">⌾ Credentials are encrypted at rest and only decrypted inside private server requests.</div>}
           <label>Delivery email<input type="email" value={deliveryEmail} onChange={(e) => setDeliveryEmail(e.target.value)} placeholder="you@studio.com" /></label>
           <div className="field-row"><label>Send at<select><option>8:00 AM</option><option>9:00 AM</option><option>12:00 PM</option></select></label><label>Daily limit<select><option>10 leads</option><option>20 leads</option><option>50 leads</option></select></label></div>
           <button className="run-button" onClick={async () => {
             await fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deliveryEmail, deliveryHour: 8, dailyLimit: 10, area, radiusMiles: Number(radius.split(" ")[0]), category, minReviews }) });
             setSettingsOpen(false); setToast("Daily scout settings saved"); window.setTimeout(() => setToast(""), 2400);
           }}>Save schedule</button>
-          <small className="api-note">API secrets are added to the private deployment—not stored in this form.</small>
+          <small className="api-note">{status.googlePlaces ? "Live search is ready." : "Google Places is required for live results."} Resend is only needed for daily email.</small>
         </div>
       </div>}
       {toast && <div className="toast">✓ {toast}</div>}

@@ -60,6 +60,14 @@ export async function getD1() {
         min_reviews INTEGER NOT NULL DEFAULT 10,
         updated_at TEXT NOT NULL
       )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS api_credentials (
+        owner TEXT NOT NULL,
+        service TEXT NOT NULL,
+        ciphertext TEXT NOT NULL,
+        iv TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (owner, service)
+      )`),
     ]);
     initialized = true;
   }
@@ -120,4 +128,49 @@ export async function listDailyRecipients() {
     email: String(row.delivery_email),
     limit: Math.max(1, Math.min(50, Number(row.daily_limit))),
   }));
+}
+
+function toBase64(bytes: Uint8Array) {
+  let value = "";
+  for (const byte of bytes) value += String.fromCharCode(byte);
+  return btoa(value);
+}
+
+function fromBase64(value: string) {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function vaultKey() {
+  if (!env.CREDENTIAL_ENCRYPTION_KEY) throw new Error("Credential vault is not initialized");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(env.CREDENTIAL_ENCRYPTION_KEY));
+  return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+export async function setCredential(owner: string, service: "googlePlaces" | "resend", secret: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await vaultKey(), new TextEncoder().encode(secret));
+  const db = await getD1();
+  await db.prepare(`INSERT INTO api_credentials (owner, service, ciphertext, iv, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(owner, service) DO UPDATE SET ciphertext=excluded.ciphertext, iv=excluded.iv, updated_at=excluded.updated_at`)
+    .bind(owner, service, toBase64(new Uint8Array(encrypted)), toBase64(iv), new Date().toISOString()).run();
+}
+
+export async function getCredential(owner: string, service: "googlePlaces" | "resend") {
+  const db = await getD1();
+  const row = await db.prepare("SELECT ciphertext, iv FROM api_credentials WHERE owner = ? AND service = ?").bind(owner, service).first();
+  if (!row) return null;
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: fromBase64(String(row.iv)) },
+    await vaultKey(),
+    fromBase64(String(row.ciphertext)),
+  );
+  return new TextDecoder().decode(decrypted);
+}
+
+export async function hasCredential(owner: string, service: "googlePlaces" | "resend") {
+  const db = await getD1();
+  const row = await db.prepare("SELECT 1 AS present FROM api_credentials WHERE owner = ? AND service = ?").bind(owner, service).first();
+  return Boolean(row);
 }

@@ -10,6 +10,7 @@ interface Env {
   LEAD_DELIVERY_EMAIL?: string;
   LEAD_FROM_EMAIL?: string;
   DAILY_SCOUT_TOKEN?: string;
+  CREDENTIAL_ENCRYPTION_KEY?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {

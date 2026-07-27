@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { headers } from "next/headers";
-import { saveLeads, type StoredLead } from "../../../db/store";
+import { getCredential, saveLeads, type StoredLead } from "../../../db/store";
 
 type Place = {
   id: string;
@@ -54,7 +54,9 @@ function hashPosition(value: string, offset: number) {
 }
 
 export async function POST(request: Request) {
-  if (!env.GOOGLE_PLACES_API_KEY) return Response.json({ error: "Google Places is not connected", code: "NOT_CONNECTED" }, { status: 503 });
+  const owner = (await headers()).get("oai-authenticated-user-email") ?? "local-owner";
+  const googleKey = env.GOOGLE_PLACES_API_KEY || await getCredential(owner, "googlePlaces").catch(() => null);
+  if (!googleKey) return Response.json({ error: "Google Places is not connected", code: "NOT_CONNECTED" }, { status: 503 });
   const input = await request.json() as { area?: string; category?: string; minReviews?: number; limit?: number };
   const area = String(input.area || "Sacramento, CA").slice(0, 120);
   const category = String(input.category || "local businesses").replace("All local businesses", "local businesses").slice(0, 80);
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Goog-Api-Key": env.GOOGLE_PLACES_API_KEY,
+      "X-Goog-Api-Key": googleKey,
       "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.websiteUri,places.googleMapsUri,places.primaryTypeDisplayName",
     },
     body: JSON.stringify({ textQuery: `${category} in ${area}`, pageSize: Math.min(20, Number(input.limit || 20)) }),
@@ -90,7 +92,6 @@ export async function POST(request: Request) {
       stage: "New", x: hashPosition(place.id, 11), y: hashPosition(place.id, 37),
     };
   }).sort((a, b) => b.score - a.score);
-  const owner = (await headers()).get("oai-authenticated-user-email") ?? "local-owner";
   await saveLeads(owner, leads);
   return Response.json({ leads, scanned: candidates.length, qualified: leads.length });
 }
