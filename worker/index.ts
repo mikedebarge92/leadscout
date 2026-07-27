@@ -5,6 +5,11 @@ import handler from "vinext/server/app-router-entry";
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  GOOGLE_PLACES_API_KEY?: string;
+  RESEND_API_KEY?: string;
+  LEAD_DELIVERY_EMAIL?: string;
+  LEAD_FROM_EMAIL?: string;
+  DAILY_SCOUT_TOKEN?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
