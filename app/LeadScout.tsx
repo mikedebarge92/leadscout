@@ -46,6 +46,8 @@ export default function LeadScout() {
   const [toast, setToast] = useState("");
   const [running, setRunning] = useState(false);
   const [minReviews, setMinReviews] = useState(10);
+  const [includeNoWebsite, setIncludeNoWebsite] = useState(true);
+  const [includeOutdated, setIncludeOutdated] = useState(true);
   const [deliveryEmail, setDeliveryEmail] = useState("");
   const [googleKey, setGoogleKey] = useState("");
   const [resendKey, setResendKey] = useState("");
@@ -93,7 +95,7 @@ export default function LeadScout() {
       const response = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ area, category, minReviews, radius, limit: 20 }),
+        body: JSON.stringify({ area, category, minReviews, radius, limit: 20, includeNoWebsite, includeOutdated }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.code === "NOT_CONNECTED" ? "Connect Google Places before running a live search" : result.error || "Search failed");
@@ -101,7 +103,7 @@ export default function LeadScout() {
       if (result.leads[0]) setSelected(result.leads[0]);
       setRunning(false);
       setSearchOpen(false);
-      setToast(`Found ${result.qualified} qualified leads near ${area}`);
+      setToast(`Found ${result.qualified} qualified leads after checking ${result.scanned} businesses`);
       window.setTimeout(() => setToast(""), 2600);
     } catch (error) {
       setRunning(false);
@@ -245,7 +247,7 @@ export default function LeadScout() {
             </div>
             <div className="section"><label>CONTACT</label><p>⌖ {selected.address}</p><p>☎ {selected.phone}</p></div>
             {(selected.website || selected.mapsUrl) && <div className="external-links">{selected.website && <a href={selected.website} target="_blank" rel="noreferrer">Visit website ↗</a>}{selected.mapsUrl && <a href={selected.mapsUrl} target="_blank" rel="noreferrer">Google Maps ↗</a>}</div>}
-            <div className="section"><label>WEBSITE SIGNAL</label><div className="signal"><span>!</span><div><strong>{selected.issue}</strong><p>{selected.reason}</p></div></div></div>
+            <div className="section"><label>WEBSITE SIGNAL</label><div className="signal"><span>!</span><div><strong>{selected.issue}</strong><p>{selected.reason}</p>{selected.website && <small className="audit-proof">Verified from the site’s technical markup</small>}</div></div></div>
             <div className="section"><label>WHY IT&apos;S A GOOD LEAD</label>
               <ul><li><span>✓</span> 4.5+ rating with strong local trust</li><li><span>✓</span> {selected.reviews} reviews show proven demand</li><li><span>✓</span> Clear opportunity to improve conversion</li></ul>
             </div>
@@ -263,8 +265,9 @@ export default function LeadScout() {
           <div className="field-row"><label>Radius<select value={radius} onChange={(e) => setRadius(e.target.value)}><option>2 miles</option><option>5 miles</option><option>10 miles</option><option>25 miles</option></select></label>
           <label>Business type<select value={category} onChange={(e) => setCategory(e.target.value)}><option>All local businesses</option><option>Home services</option><option>Health & wellness</option><option>Food & hospitality</option><option>Professional services</option></select></label></div>
           <label>Minimum Google reviews<input type="number" min={10} value={minReviews} onChange={(e) => setMinReviews(Number(e.target.value))} /></label>
-          <div className="check-row"><span>Website signal</span><label><input type="checkbox" defaultChecked /> No website</label><label><input type="checkbox" defaultChecked /> Outdated website</label></div>
-          <button className="run-button" onClick={runSearch} disabled={running}>{running ? "Scouting the area…" : "Find qualified leads →"}</button>
+          <div className="check-row"><span>Website signal</span><label><input type="checkbox" checked={includeNoWebsite} onChange={(e) => setIncludeNoWebsite(e.target.checked)} /> No website</label><label><input type="checkbox" checked={includeOutdated} onChange={(e) => setIncludeOutdated(e.target.checked)} /> Outdated website</label></div>
+          <button className="run-button" onClick={runSearch} disabled={running || (!includeNoWebsite && !includeOutdated)}>{running ? "Scanning businesses & websites…" : "Find qualified leads →"}</button>
+          {includeOutdated && <small className="audit-explainer">Outdated sites require multiple verified technical signals. Unreachable sites are excluded.</small>}
           <small className="api-note">{status.googlePlaces ? "Live mode · Google Places connected" : "Demo mode · Google Places connection required"}</small>
         </div>
       </div>}
