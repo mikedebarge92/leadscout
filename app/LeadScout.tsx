@@ -30,10 +30,11 @@ const seedLeads: Lead[] = [
   { id: "demo-6", name: "Oak & Iron Barbers", category: "Barber shop", area: "Oak Park", rating: 4.7, reviews: 47, issue: "No website", score: 80, phone: "(916) 555-0114", address: "3512 Broadway", reason: "Growing review count with no booking destination", stage: "New", x: 69, y: 70 },
 ];
 
-const filters = ["All leads", "No website", "Outdated site", "Saved"];
+const filters = ["All leads", "No website", "Outdated site"];
 
 export default function LeadScout() {
   const [leads, setLeads] = useState(seedLeads);
+  const [view, setView] = useState<"discover" | "saved">("discover");
   const [filter, setFilter] = useState("All leads");
   const [selected, setSelected] = useState<Lead>(seedLeads[0]);
   const [query, setQuery] = useState("");
@@ -41,7 +42,6 @@ export default function LeadScout() {
   const [radius, setRadius] = useState("5 miles");
   const [category, setCategory] = useState("All local businesses");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [briefOpen, setBriefOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [running, setRunning] = useState(false);
@@ -69,9 +69,10 @@ export default function LeadScout() {
 
   const visible = useMemo(() => leads.filter((lead) => {
     const textMatch = `${lead.name} ${lead.category} ${lead.area}`.toLowerCase().includes(query.toLowerCase());
-    const filterMatch = filter === "All leads" || lead.issue === filter || (filter === "Saved" && lead.stage !== "New");
-    return textMatch && filterMatch;
-  }), [leads, query, filter]);
+    const filterMatch = filter === "All leads" || lead.issue === filter;
+    const viewMatch = view === "discover" || lead.stage !== "New";
+    return textMatch && filterMatch && viewMatch;
+  }), [leads, query, filter, view]);
 
   function persist(next: Lead[]) {
     setLeads(next);
@@ -85,7 +86,7 @@ export default function LeadScout() {
     if (!id.startsWith("demo-")) {
       fetch("/api/leads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, stage }) }).catch(() => {});
     }
-    setToast(stage === "Saved" ? "Lead saved to your pipeline" : `Moved to ${stage.toLowerCase()}`);
+    setToast(stage === "Saved" ? "Lead saved to your shortlist" : "Lead removed from saved leads");
     window.setTimeout(() => setToast(""), 2400);
   }
 
@@ -99,7 +100,9 @@ export default function LeadScout() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.code === "NOT_CONNECTED" ? "Connect Google Places before running a live search" : result.error || "Search failed");
-      setLeads(result.leads);
+      const refreshed = await fetch("/api/leads").then((response) => response.json()).catch(() => ({ leads: result.leads }));
+      const allLeads = refreshed.leads?.length ? refreshed.leads : result.leads;
+      setLeads(allLeads);
       if (result.leads[0]) setSelected(result.leads[0]);
       setRunning(false);
       setSearchOpen(false);
@@ -142,6 +145,17 @@ export default function LeadScout() {
 
   const noWebsiteCount = leads.filter((lead) => lead.issue === "No website").length;
   const avgReviews = leads.length ? Math.round(leads.reduce((total, lead) => total + lead.reviews, 0) / leads.length) : 0;
+  const savedLeads = leads.filter((lead) => lead.stage !== "New");
+  const savedNoWebsite = savedLeads.filter((lead) => lead.issue === "No website").length;
+  const savedAvgReviews = savedLeads.length ? Math.round(savedLeads.reduce((total, lead) => total + lead.reviews, 0) / savedLeads.length) : 0;
+
+  function switchView(next: "discover" | "saved") {
+    setView(next);
+    setFilter("All leads");
+    setQuery("");
+    const first = leads.find((lead) => next === "discover" || lead.stage !== "New");
+    if (first) setSelected(first);
+  }
 
   return (
     <div className="app-shell">
@@ -151,10 +165,8 @@ export default function LeadScout() {
           <span>LeadScout</span>
         </div>
         <nav>
-          <button className="nav-item active"><span>⌂</span> Discover</button>
-          <button className="nav-item"><span>◇</span> Saved leads <b>{leads.filter(l => l.stage !== "New").length}</b></button>
-          <button className="nav-item"><span>↗</span> Outreach</button>
-          <button className="nav-item"><span>▱</span> Prototypes</button>
+          <button className={`nav-item ${view === "discover" ? "active" : ""}`} onClick={() => switchView("discover")}><span>⌂</span> Discover</button>
+          <button className={`nav-item ${view === "saved" ? "active" : ""}`} onClick={() => switchView("saved")}><span>♡</span> Saved leads <b>{savedLeads.length}</b></button>
         </nav>
         <div className="sidebar-foot">
           <div className="daily-card">
@@ -171,34 +183,39 @@ export default function LeadScout() {
       <main>
         <header>
           <div>
-            <p className="eyebrow">DISCOVER</p>
-            <h1>Good businesses. Better websites.</h1>
+            <p className="eyebrow">{view === "discover" ? "DISCOVER" : "SAVED LEADS"}</p>
+            <h1>{view === "discover" ? "Good businesses. Better websites." : "Your strongest opportunities."}</h1>
           </div>
           <div className="header-actions">
             <label className="search-box"><span>⌕</span><input aria-label="Search leads" placeholder="Search leads..." value={query} onChange={(e) => setQuery(e.target.value)} /><kbd>⌘ K</kbd></label>
             <button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="Settings">⚙</button>
-            <button className="primary" onClick={() => setSearchOpen(true)}><span>＋</span> New search</button>
+            {view === "discover" && <button className="primary" onClick={() => setSearchOpen(true)}><span>＋</span> New search</button>}
           </div>
         </header>
 
-        <section className="stats-row">
+        {view === "discover" ? <section className="stats-row">
           <div><span>QUALIFIED LEADS</span><strong>{leads.length}</strong><em>{status.mode === "live" ? "Live results" : "Demo results"}</em></div>
           <div><span>WITHOUT A WEBSITE</span><strong>{noWebsiteCount}</strong><em>{leads.length ? Math.round(noWebsiteCount / leads.length * 100) : 0}% of leads</em></div>
           <div><span>OUTDATED SITES</span><strong>{leads.length - noWebsiteCount}</strong><em>Needs redesign</em></div>
           <div><span>AVG. REVIEWS</span><strong>{avgReviews}</strong><em>Strong social proof</em></div>
-        </section>
+        </section> : <section className="stats-row saved-stats">
+          <div><span>SAVED LEADS</span><strong>{savedLeads.length}</strong><em>Persistent shortlist</em></div>
+          <div><span>WITHOUT A WEBSITE</span><strong>{savedNoWebsite}</strong><em>Clean opportunities</em></div>
+          <div><span>OUTDATED SITES</span><strong>{savedLeads.length - savedNoWebsite}</strong><em>Redesign opportunities</em></div>
+          <div><span>AVG. REVIEWS</span><strong>{savedAvgReviews}</strong><em>Local credibility</em></div>
+        </section>}
 
-        {!status.googlePlaces && <section className="setup-banner">
+        {view === "discover" && !status.googlePlaces && <section className="setup-banner">
           <div className="setup-icon">⌁</div>
           <div><strong>Make LeadScout live</strong><p>Connect Google Places once, then search real businesses from this dashboard.</p></div>
           <button onClick={() => setSettingsOpen(true)}>Connect API →</button>
         </section>}
 
-        <section className="workspace">
+        <section className={`workspace ${view === "saved" ? "saved-workspace" : ""}`}>
           <div className="map-panel">
             <div className="map-toolbar">
-              <button onClick={() => setSearchOpen(true)}>⌖ {area}</button>
-              <button onClick={() => setSearchOpen(true)}>Within {radius}⌄</button>
+              <button onClick={() => view === "discover" && setSearchOpen(true)}>⌖ {area}</button>
+              <button onClick={() => view === "discover" && setSearchOpen(true)}>{view === "discover" ? `Within ${radius}⌄` : `${savedLeads.length} saved`}</button>
             </div>
             <div className="street s1" /><div className="street s2" /><div className="street s3" /><div className="street s4" />
             <div className="street s5" /><div className="street s6" /><div className="river" />
@@ -213,11 +230,12 @@ export default function LeadScout() {
 
           <div className="leads-panel">
             <div className="panel-head">
-              <div><h2>Qualified leads</h2><p>Sorted by opportunity score</p></div>
+              <div><h2>{view === "discover" ? "Qualified leads" : "Saved leads"}</h2><p>{view === "discover" ? "Sorted by opportunity score" : "Your persistent prospect shortlist"}</p></div>
               <button>↕</button>
             </div>
             <div className="filters">{filters.map(f => <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{f}</button>)}</div>
             <div className="lead-list">
+              {visible.length === 0 && <div className="empty-saved"><span>♡</span><h3>No saved leads yet</h3><p>Open Discover and save the businesses you want to pursue.</p><button onClick={() => switchView("discover")}>Browse leads</button></div>}
               {visible.map((lead) => (
                 <article key={lead.id} className={`lead-card ${selected.id === lead.id ? "active" : ""}`} onClick={() => setSelected(lead)}>
                   <div className="score">{lead.score}</div>
@@ -226,9 +244,9 @@ export default function LeadScout() {
                     <p>{lead.category} · {lead.area}</p>
                     <div className="rating"><span>★</span> {lead.rating} <small>({lead.reviews} reviews)</small></div>
                     <p className="reason">{lead.reason}</p>
-                    {lead.stage !== "New" && <span className="stage">✓ {lead.stage}</span>}
+                    {lead.stage !== "New" && <span className="stage">✓ Saved</span>}
                   </div>
-                  <button className="more" onClick={(e) => { e.stopPropagation(); updateStage(lead.id, "Saved"); }}>···</button>
+                  <button className={`save-heart ${lead.stage !== "New" ? "saved" : ""}`} aria-label={lead.stage !== "New" ? "Remove saved lead" : "Save lead"} onClick={(e) => { e.stopPropagation(); updateStage(lead.id, lead.stage !== "New" ? "New" : "Saved"); }}>{lead.stage !== "New" ? "♥" : "♡"}</button>
                 </article>
               ))}
             </div>
@@ -240,10 +258,10 @@ export default function LeadScout() {
             <p className="detail-category">{selected.category} · {selected.area}</p>
             <h2>{selected.name}</h2>
             <div className="rating big"><span>★</span> {selected.rating} <small>{selected.reviews} Google reviews</small></div>
-            <div className="detail-actions">
+            <div className="detail-actions compact-actions">
               <a href={`tel:${selected.phone}`}>☎ <span>Call</span></a>
-              <button onClick={() => updateStage(selected.id, "Saved")}>♡ <span>Save</span></button>
-              <button onClick={() => setBriefOpen(true)}>▱ <span>Prototype</span></button>
+              <button onClick={() => updateStage(selected.id, selected.stage !== "New" ? "New" : "Saved")}>{selected.stage !== "New" ? "♥" : "♡"} <span>{selected.stage !== "New" ? "Remove" : "Save"}</span></button>
+              {selected.mapsUrl ? <a href={selected.mapsUrl} target="_blank" rel="noreferrer">⌖ <span>Maps</span></a> : <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.address)}`} target="_blank" rel="noreferrer">⌖ <span>Maps</span></a>}
             </div>
             <div className="section"><label>CONTACT</label><p>⌖ {selected.address}</p><p>☎ {selected.phone}</p></div>
             {(selected.website || selected.mapsUrl) && <div className="external-links">{selected.website && <a href={selected.website} target="_blank" rel="noreferrer">Visit website ↗</a>}{selected.mapsUrl && <a href={selected.mapsUrl} target="_blank" rel="noreferrer">Google Maps ↗</a>}</div>}
@@ -251,8 +269,7 @@ export default function LeadScout() {
             <div className="section"><label>WHY IT&apos;S A GOOD LEAD</label>
               <ul><li><span>✓</span> 4.5+ rating with strong local trust</li><li><span>✓</span> {selected.reviews} reviews show proven demand</li><li><span>✓</span> Clear opportunity to improve conversion</li></ul>
             </div>
-            <button className="prototype-button" onClick={() => setBriefOpen(true)}>Create prototype brief <span>→</span></button>
-            <button className="contact-button" onClick={() => updateStage(selected.id, "Contacted")}>Mark as contacted</button>
+            <button className={selected.stage !== "New" ? "remove-saved-button" : "save-lead-button"} onClick={() => updateStage(selected.id, selected.stage !== "New" ? "New" : "Saved")}>{selected.stage !== "New" ? "Remove from saved leads" : "Save this lead"} <span>{selected.stage !== "New" ? "×" : "♥"}</span></button>
           </aside>
         </section>
       </main>
@@ -269,16 +286,6 @@ export default function LeadScout() {
           <button className="run-button" onClick={runSearch} disabled={running || (!includeNoWebsite && !includeOutdated)}>{running ? "Scanning businesses & websites…" : "Find qualified leads →"}</button>
           {includeOutdated && <small className="audit-explainer">Outdated sites require multiple verified technical signals. Unreachable sites are excluded.</small>}
           <small className="api-note">{status.googlePlaces ? "Live mode · Google Places connected" : "Demo mode · Google Places connection required"}</small>
-        </div>
-      </div>}
-
-      {briefOpen && <div className="modal-backdrop" onMouseDown={() => setBriefOpen(false)}>
-        <div className="modal brief" onMouseDown={(e) => e.stopPropagation()}>
-          <button className="modal-close" onClick={() => setBriefOpen(false)}>×</button>
-          <p className="eyebrow">PROTOTYPE BRIEF</p><h2>{selected.name}</h2><p className="modal-copy">A focused starting point for a compelling unsolicited redesign.</p>
-          <div className="brief-grid"><div><span>PRIMARY GOAL</span><strong>Turn local search traffic into calls</strong></div><div><span>TRUST SIGNAL</span><strong>{selected.rating} stars · {selected.reviews} reviews</strong></div><div><span>CORE CTA</span><strong>Call or request an appointment</strong></div><div><span>POSITIONING</span><strong>Trusted, local, established</strong></div></div>
-          <label>Suggested homepage angle<textarea defaultValue={`${selected.name} is already trusted by the community. The new site should make that reputation instantly visible and give customers one clear next step.`} /></label>
-          <button className="run-button" onClick={() => { updateStage(selected.id, "Prototype ready"); setBriefOpen(false); }}>Save brief & mark prototype ready →</button>
         </div>
       </div>}
 
