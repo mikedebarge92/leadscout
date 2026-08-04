@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { listLeads, setLeadStage } from "../../../db/store";
+import { clearUnsavedLeads, listLeads, setLeadStage } from "../../../db/store";
 
 async function owner() {
   return (await headers()).get("oai-authenticated-user-email") ?? "local-owner";
@@ -18,4 +18,9 @@ export async function PATCH(request: Request) {
   if (!input.id || !input.stage) return Response.json({ error: "Missing lead or stage" }, { status: 400 });
   await setLeadStage(await owner(), input.id, input.stage);
   return Response.json({ ok: true });
+}
+
+export async function DELETE() {
+  const cleared = await clearUnsavedLeads(await owner());
+  return Response.json({ ok: true, cleared });
 }

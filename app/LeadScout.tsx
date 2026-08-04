@@ -115,6 +115,21 @@ export default function LeadScout() {
     }
   }
 
+  async function clearResults() {
+    try {
+      const response = await fetch("/api/leads", { method: "DELETE" });
+      if (!response.ok) throw new Error("Could not clear results");
+      const savedOnly = leads.filter((lead) => lead.stage !== "New");
+      setLeads(savedOnly);
+      if (savedOnly[0]) setSelected(savedOnly[0]);
+      setToast("Search results cleared · saved leads kept");
+      window.setTimeout(() => setToast(""), 2600);
+    } catch {
+      setToast("Could not clear results");
+      window.setTimeout(() => setToast(""), 2600);
+    }
+  }
+
   async function connectService(service: "googlePlaces" | "resend") {
     const key = service === "googlePlaces" ? googleKey : resendKey;
     if (!key.trim()) {
@@ -231,7 +246,7 @@ export default function LeadScout() {
           <div className="leads-panel">
             <div className="panel-head">
               <div><h2>{view === "discover" ? "Qualified leads" : "Saved leads"}</h2><p>{view === "discover" ? "Sorted by opportunity score" : "Your persistent prospect shortlist"}</p></div>
-              <button>↕</button>
+              {view === "discover" && leads.some((lead) => lead.stage === "New") ? <button className="clear-results" onClick={clearResults}>Clear results</button> : <span />}
             </div>
             <div className="filters">{filters.map(f => <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{f}</button>)}</div>
             <div className="lead-list">

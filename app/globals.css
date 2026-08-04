@@ -67,6 +67,7 @@ kbd { font-size:8px;background:#f7f4ed;border:1px solid #d9d3c8;border-radius:4p
 .panel-head h2,.detail-panel h2 { font:normal 19px Georgia,serif;margin:0 0 4px; }
 .panel-head p { font-size:9px;color:#8b8981;margin:0; }
 .panel-head button,.more { border:0;background:transparent;cursor:pointer;color:#7d7c75; }
+.panel-head .clear-results{border:1px solid #d8d2c7;background:#fff8f5;color:#a34e3f;border-radius:6px;padding:6px 9px;font-size:8px;font-weight:bold}.panel-head .clear-results:hover{background:#f8e3dd;border-color:#e1b6ac}
 .filters { display:flex;gap:5px;padding:5px 18px 12px;overflow:auto; }
 .filters button { border:1px solid #d9d4ca;background:transparent;border-radius:14px;padding:5px 9px;font-size:8px;white-space:nowrap;cursor:pointer; }
 .filters button.active { background:#292a27;color:white;border-color:#292a27; }

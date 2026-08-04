@@ -108,6 +108,12 @@ export async function setLeadStage(owner: string, id: string, stage: StoredLead[
     .bind(stage, new Date().toISOString(), id, owner).run();
 }
 
+export async function clearUnsavedLeads(owner: string) {
+  const db = await getD1();
+  const result = await db.prepare("DELETE FROM leads WHERE owner = ? AND stage = 'New'").bind(owner).run();
+  return result.meta.changes ?? 0;
+}
+
 export async function saveSettings(owner: string, input: Record<string, unknown>) {
   const db = await getD1();
   await db.prepare(`INSERT INTO settings
