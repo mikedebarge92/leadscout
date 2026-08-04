@@ -16,6 +16,8 @@ export const leads = sqliteTable("leads", {
   mapsUrl: text("maps_url"),
   reason: text("reason").notNull(),
   stage: text("stage").notNull().default("New"),
+  isSaved: integer("is_saved").notNull().default(0),
+  inDiscovery: integer("in_discovery").notNull().default(1),
   x: integer("x").notNull(),
   y: integer("y").notNull(),
   createdAt: text("created_at").notNull(),

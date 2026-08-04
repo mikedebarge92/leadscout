@@ -15,6 +15,8 @@ type Lead = {
   address: string;
   reason: string;
   stage: "New" | "Saved" | "Prototype ready" | "Contacted";
+  isSaved?: boolean;
+  inDiscovery?: boolean;
   website?: string;
   mapsUrl?: string;
   x: number;
@@ -70,7 +72,7 @@ export default function LeadScout() {
   const visible = useMemo(() => leads.filter((lead) => {
     const textMatch = `${lead.name} ${lead.category} ${lead.area}`.toLowerCase().includes(query.toLowerCase());
     const filterMatch = filter === "All leads" || lead.issue === filter;
-    const viewMatch = view === "discover" || lead.stage !== "New";
+    const viewMatch = view === "discover" ? lead.inDiscovery !== false : (lead.isSaved ?? lead.stage !== "New");
     return textMatch && filterMatch && viewMatch;
   }), [leads, query, filter, view]);
 
@@ -79,7 +81,7 @@ export default function LeadScout() {
   }
 
   function updateStage(id: string, stage: Lead["stage"]) {
-    const next = leads.map((lead) => lead.id === id ? { ...lead, stage } : lead);
+    const next = leads.map((lead) => lead.id === id ? { ...lead, stage, isSaved: stage === "Saved" } : lead);
     persist(next);
     const active = next.find((lead) => lead.id === id);
     if (active) setSelected(active);
@@ -119,7 +121,7 @@ export default function LeadScout() {
     try {
       const response = await fetch("/api/leads", { method: "DELETE" });
       if (!response.ok) throw new Error("Could not clear results");
-      const savedOnly = leads.filter((lead) => lead.stage !== "New");
+      const savedOnly = leads.filter((lead) => lead.isSaved ?? lead.stage !== "New").map((lead) => ({ ...lead, inDiscovery: false }));
       setLeads(savedOnly);
       if (savedOnly[0]) setSelected(savedOnly[0]);
       setToast("Search results cleared · saved leads kept");
@@ -160,7 +162,7 @@ export default function LeadScout() {
 
   const noWebsiteCount = leads.filter((lead) => lead.issue === "No website").length;
   const avgReviews = leads.length ? Math.round(leads.reduce((total, lead) => total + lead.reviews, 0) / leads.length) : 0;
-  const savedLeads = leads.filter((lead) => lead.stage !== "New");
+  const savedLeads = leads.filter((lead) => lead.isSaved ?? lead.stage !== "New");
   const savedNoWebsite = savedLeads.filter((lead) => lead.issue === "No website").length;
   const savedAvgReviews = savedLeads.length ? Math.round(savedLeads.reduce((total, lead) => total + lead.reviews, 0) / savedLeads.length) : 0;
 
@@ -168,7 +170,7 @@ export default function LeadScout() {
     setView(next);
     setFilter("All leads");
     setQuery("");
-    const first = leads.find((lead) => next === "discover" || lead.stage !== "New");
+    const first = leads.find((lead) => next === "discover" ? lead.inDiscovery !== false : (lead.isSaved ?? lead.stage !== "New"));
     if (first) setSelected(first);
   }
 
@@ -246,7 +248,7 @@ export default function LeadScout() {
           <div className="leads-panel">
             <div className="panel-head">
               <div><h2>{view === "discover" ? "Qualified leads" : "Saved leads"}</h2><p>{view === "discover" ? "Sorted by opportunity score" : "Your persistent prospect shortlist"}</p></div>
-              {view === "discover" && leads.some((lead) => lead.stage === "New") ? <button className="clear-results" onClick={clearResults}>Clear results</button> : <span />}
+              {view === "discover" && leads.some((lead) => lead.inDiscovery !== false) ? <button className="clear-results" onClick={clearResults}>Clear results</button> : <span />}
             </div>
             <div className="filters">{filters.map(f => <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{f}</button>)}</div>
             <div className="lead-list">
@@ -259,9 +261,9 @@ export default function LeadScout() {
                     <p>{lead.category} · {lead.area}</p>
                     <div className="rating"><span>★</span> {lead.rating} <small>({lead.reviews} reviews)</small></div>
                     <p className="reason">{lead.reason}</p>
-                    {lead.stage !== "New" && <span className="stage">✓ Saved</span>}
+                    {(lead.isSaved ?? lead.stage !== "New") && <span className="stage">✓ Saved</span>}
                   </div>
-                  <button className={`save-heart ${lead.stage !== "New" ? "saved" : ""}`} aria-label={lead.stage !== "New" ? "Remove saved lead" : "Save lead"} onClick={(e) => { e.stopPropagation(); updateStage(lead.id, lead.stage !== "New" ? "New" : "Saved"); }}>{lead.stage !== "New" ? "♥" : "♡"}</button>
+                  <button className={`save-heart ${(lead.isSaved ?? lead.stage !== "New") ? "saved" : ""}`} aria-label={(lead.isSaved ?? lead.stage !== "New") ? "Remove saved lead" : "Save lead"} onClick={(e) => { e.stopPropagation(); updateStage(lead.id, (lead.isSaved ?? lead.stage !== "New") ? "New" : "Saved"); }}>{(lead.isSaved ?? lead.stage !== "New") ? "♥" : "♡"}</button>
                 </article>
               ))}
             </div>
@@ -275,7 +277,7 @@ export default function LeadScout() {
             <div className="rating big"><span>★</span> {selected.rating} <small>{selected.reviews} Google reviews</small></div>
             <div className="detail-actions compact-actions">
               <a href={`tel:${selected.phone}`}>☎ <span>Call</span></a>
-              <button onClick={() => updateStage(selected.id, selected.stage !== "New" ? "New" : "Saved")}>{selected.stage !== "New" ? "♥" : "♡"} <span>{selected.stage !== "New" ? "Remove" : "Save"}</span></button>
+              <button onClick={() => updateStage(selected.id, (selected.isSaved ?? selected.stage !== "New") ? "New" : "Saved")}>{(selected.isSaved ?? selected.stage !== "New") ? "♥" : "♡"} <span>{(selected.isSaved ?? selected.stage !== "New") ? "Remove" : "Save"}</span></button>
               {selected.mapsUrl ? <a href={selected.mapsUrl} target="_blank" rel="noreferrer">⌖ <span>Maps</span></a> : <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.address)}`} target="_blank" rel="noreferrer">⌖ <span>Maps</span></a>}
             </div>
             <div className="section"><label>CONTACT</label><p>⌖ {selected.address}</p><p>☎ {selected.phone}</p></div>
@@ -284,7 +286,7 @@ export default function LeadScout() {
             <div className="section"><label>WHY IT&apos;S A GOOD LEAD</label>
               <ul><li><span>✓</span> 4.5+ rating with strong local trust</li><li><span>✓</span> {selected.reviews} reviews show proven demand</li><li><span>✓</span> Clear opportunity to improve conversion</li></ul>
             </div>
-            <button className={selected.stage !== "New" ? "remove-saved-button" : "save-lead-button"} onClick={() => updateStage(selected.id, selected.stage !== "New" ? "New" : "Saved")}>{selected.stage !== "New" ? "Remove from saved leads" : "Save this lead"} <span>{selected.stage !== "New" ? "×" : "♥"}</span></button>
+            <button className={(selected.isSaved ?? selected.stage !== "New") ? "remove-saved-button" : "save-lead-button"} onClick={() => updateStage(selected.id, (selected.isSaved ?? selected.stage !== "New") ? "New" : "Saved")}>{(selected.isSaved ?? selected.stage !== "New") ? "Remove from saved leads" : "Save this lead"} <span>{(selected.isSaved ?? selected.stage !== "New") ? "×" : "♥"}</span></button>
           </aside>
         </section>
       </main>

@@ -15,6 +15,8 @@ export type StoredLead = {
   mapsUrl?: string;
   reason: string;
   stage: "New" | "Saved" | "Prototype ready" | "Contacted";
+  isSaved: boolean;
+  inDiscovery: boolean;
   x: number;
   y: number;
 };
@@ -42,6 +44,8 @@ export async function getD1() {
         maps_url TEXT,
         reason TEXT NOT NULL,
         stage TEXT NOT NULL DEFAULT 'New',
+        is_saved INTEGER NOT NULL DEFAULT 0,
+        in_discovery INTEGER NOT NULL DEFAULT 1,
         x INTEGER NOT NULL,
         y INTEGER NOT NULL,
         created_at TEXT NOT NULL,
@@ -77,41 +81,48 @@ export async function getD1() {
 export async function saveLeads(owner: string, leads: StoredLead[]) {
   const db = await getD1();
   const now = new Date().toISOString();
-  await db.prepare("DELETE FROM leads WHERE owner = ? AND stage = 'New'").bind(owner).run();
+  await db.batch([
+    db.prepare("UPDATE leads SET in_discovery = 0 WHERE owner = ?").bind(owner),
+    db.prepare("DELETE FROM leads WHERE owner = ? AND is_saved = 0").bind(owner),
+  ]);
   const statements = leads.map((lead) => db.prepare(`INSERT INTO leads
-    (id, owner, name, category, area, rating, reviews, issue, score, phone, address, website, maps_url, reason, stage, x, y, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT stage FROM leads WHERE id = ? AND owner = ?), ?), ?, ?, ?, ?)
+    (id, owner, name, category, area, rating, reviews, issue, score, phone, address, website, maps_url, reason, stage, is_saved, in_discovery, x, y, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT stage FROM leads WHERE id = ? AND owner = ?), ?), COALESCE((SELECT is_saved FROM leads WHERE id = ? AND owner = ?), 0), 1, ?, ?, ?, ?)
     ON CONFLICT(id, owner) DO UPDATE SET
       name=excluded.name, category=excluded.category, area=excluded.area, rating=excluded.rating,
       reviews=excluded.reviews, issue=excluded.issue, score=excluded.score, phone=excluded.phone,
       address=excluded.address, website=excluded.website, maps_url=excluded.maps_url,
-      reason=excluded.reason, updated_at=excluded.updated_at`)
-    .bind(lead.id, owner, lead.name, lead.category, lead.area, lead.rating, lead.reviews, lead.issue, lead.score, lead.phone, lead.address, lead.website ?? null, lead.mapsUrl ?? null, lead.reason, lead.id, owner, lead.stage, lead.x, lead.y, now, now));
+      reason=excluded.reason, in_discovery=1, updated_at=excluded.updated_at`)
+    .bind(lead.id, owner, lead.name, lead.category, lead.area, lead.rating, lead.reviews, lead.issue, lead.score, lead.phone, lead.address, lead.website ?? null, lead.mapsUrl ?? null, lead.reason, lead.id, owner, lead.stage, lead.id, owner, lead.x, lead.y, now, now));
   if (statements.length) await db.batch(statements);
 }
 
 export async function listLeads(owner: string): Promise<StoredLead[]> {
   const db = await getD1();
-  const result = await db.prepare("SELECT * FROM leads WHERE owner = ? ORDER BY score DESC, updated_at DESC").bind(owner).all();
+  const result = await db.prepare("SELECT * FROM leads WHERE owner = ? AND (is_saved = 1 OR in_discovery = 1) ORDER BY score DESC, updated_at DESC").bind(owner).all();
   return result.results.map((row) => ({
     id: String(row.id), name: String(row.name), category: String(row.category), area: String(row.area),
     rating: Number(row.rating), reviews: Number(row.reviews), issue: row.issue as StoredLead["issue"],
     score: Number(row.score), phone: String(row.phone), address: String(row.address),
     website: row.website ? String(row.website) : undefined, mapsUrl: row.maps_url ? String(row.maps_url) : undefined,
-    reason: String(row.reason), stage: row.stage as StoredLead["stage"], x: Number(row.x), y: Number(row.y),
+    reason: String(row.reason), stage: row.stage as StoredLead["stage"], isSaved: Number(row.is_saved) === 1,
+    inDiscovery: Number(row.in_discovery) === 1, x: Number(row.x), y: Number(row.y),
   }));
 }
 
 export async function setLeadStage(owner: string, id: string, stage: StoredLead["stage"]) {
   const db = await getD1();
-  await db.prepare("UPDATE leads SET stage = ?, updated_at = ? WHERE id = ? AND owner = ?")
-    .bind(stage, new Date().toISOString(), id, owner).run();
+  await db.prepare("UPDATE leads SET stage = ?, is_saved = ?, updated_at = ? WHERE id = ? AND owner = ?")
+    .bind(stage, stage === "Saved" ? 1 : 0, new Date().toISOString(), id, owner).run();
 }
 
 export async function clearUnsavedLeads(owner: string) {
   const db = await getD1();
-  const result = await db.prepare("DELETE FROM leads WHERE owner = ? AND stage = 'New'").bind(owner).run();
-  return result.meta.changes ?? 0;
+  const result = await db.batch([
+    db.prepare("UPDATE leads SET in_discovery = 0 WHERE owner = ? AND in_discovery = 1").bind(owner),
+    db.prepare("DELETE FROM leads WHERE owner = ? AND is_saved = 0").bind(owner),
+  ]);
+  return result.reduce((total, entry) => total + (entry.meta.changes ?? 0), 0);
 }
 
 export async function saveSettings(owner: string, input: Record<string, unknown>) {
