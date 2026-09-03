@@ -118,7 +118,7 @@ export async function POST(request: Request) {
       score, phone: place.nationalPhoneNumber || "Phone not listed",
       address: place.formattedAddress || area, website: place.websiteUri, mapsUrl: place.googleMapsUri,
       reason: noWebsite ? "Strong local demand with no owned web presence" : audit.reason,
-      stage: "New", isSaved: false, inDiscovery: true, x: hashPosition(place.id, 11), y: hashPosition(place.id, 37),
+      stage: "New", isSaved: false, inDiscovery: true, siteBuilt: false, x: hashPosition(place.id, 11), y: hashPosition(place.id, 37),
     };
   }).sort((a, b) => b.score - a.score);
   await saveLeads(owner, leads);

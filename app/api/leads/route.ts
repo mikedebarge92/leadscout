@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { clearUnsavedLeads, listLeads, setLeadStage } from "../../../db/store";
+import { clearUnsavedLeads, listLeads, setLeadStage, setSiteBuilt } from "../../../db/store";
 
 async function owner() {
   return (await headers()).get("oai-authenticated-user-email") ?? "local-owner";
@@ -14,9 +14,12 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const input = await request.json() as { id?: string; stage?: "New" | "Saved" | "Prototype ready" | "Contacted" };
-  if (!input.id || !input.stage) return Response.json({ error: "Missing lead or stage" }, { status: 400 });
-  await setLeadStage(await owner(), input.id, input.stage);
+  const input = await request.json() as { id?: string; stage?: "New" | "Saved" | "Prototype ready" | "Contacted"; siteBuilt?: boolean };
+  if (!input.id) return Response.json({ error: "Missing lead" }, { status: 400 });
+  const leadOwner = await owner();
+  if (typeof input.siteBuilt === "boolean") await setSiteBuilt(leadOwner, input.id, input.siteBuilt);
+  else if (input.stage) await setLeadStage(leadOwner, input.id, input.stage);
+  else return Response.json({ error: "Missing update" }, { status: 400 });
   return Response.json({ ok: true });
 }
 

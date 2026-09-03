@@ -1,0 +1,1 @@
+ALTER TABLE `leads` ADD `site_built` integer DEFAULT 0 NOT NULL;

@@ -17,6 +17,7 @@ export type StoredLead = {
   stage: "New" | "Saved" | "Prototype ready" | "Contacted";
   isSaved: boolean;
   inDiscovery: boolean;
+  siteBuilt: boolean;
   x: number;
   y: number;
 };
@@ -46,6 +47,7 @@ export async function getD1() {
         stage TEXT NOT NULL DEFAULT 'New',
         is_saved INTEGER NOT NULL DEFAULT 0,
         in_discovery INTEGER NOT NULL DEFAULT 1,
+        site_built INTEGER NOT NULL DEFAULT 0,
         x INTEGER NOT NULL,
         y INTEGER NOT NULL,
         created_at TEXT NOT NULL,
@@ -86,14 +88,14 @@ export async function saveLeads(owner: string, leads: StoredLead[]) {
     db.prepare("DELETE FROM leads WHERE owner = ? AND is_saved = 0").bind(owner),
   ]);
   const statements = leads.map((lead) => db.prepare(`INSERT INTO leads
-    (id, owner, name, category, area, rating, reviews, issue, score, phone, address, website, maps_url, reason, stage, is_saved, in_discovery, x, y, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT stage FROM leads WHERE id = ? AND owner = ?), ?), COALESCE((SELECT is_saved FROM leads WHERE id = ? AND owner = ?), 0), 1, ?, ?, ?, ?)
+    (id, owner, name, category, area, rating, reviews, issue, score, phone, address, website, maps_url, reason, stage, is_saved, in_discovery, site_built, x, y, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT stage FROM leads WHERE id = ? AND owner = ?), ?), COALESCE((SELECT is_saved FROM leads WHERE id = ? AND owner = ?), 0), 1, COALESCE((SELECT site_built FROM leads WHERE id = ? AND owner = ?), 0), ?, ?, ?, ?)
     ON CONFLICT(id, owner) DO UPDATE SET
       name=excluded.name, category=excluded.category, area=excluded.area, rating=excluded.rating,
       reviews=excluded.reviews, issue=excluded.issue, score=excluded.score, phone=excluded.phone,
       address=excluded.address, website=excluded.website, maps_url=excluded.maps_url,
       reason=excluded.reason, in_discovery=1, updated_at=excluded.updated_at`)
-    .bind(lead.id, owner, lead.name, lead.category, lead.area, lead.rating, lead.reviews, lead.issue, lead.score, lead.phone, lead.address, lead.website ?? null, lead.mapsUrl ?? null, lead.reason, lead.id, owner, lead.stage, lead.id, owner, lead.x, lead.y, now, now));
+    .bind(lead.id, owner, lead.name, lead.category, lead.area, lead.rating, lead.reviews, lead.issue, lead.score, lead.phone, lead.address, lead.website ?? null, lead.mapsUrl ?? null, lead.reason, lead.id, owner, lead.stage, lead.id, owner, lead.id, owner, lead.x, lead.y, now, now));
   if (statements.length) await db.batch(statements);
 }
 
@@ -106,7 +108,7 @@ export async function listLeads(owner: string): Promise<StoredLead[]> {
     score: Number(row.score), phone: String(row.phone), address: String(row.address),
     website: row.website ? String(row.website) : undefined, mapsUrl: row.maps_url ? String(row.maps_url) : undefined,
     reason: String(row.reason), stage: row.stage as StoredLead["stage"], isSaved: Number(row.is_saved) === 1,
-    inDiscovery: Number(row.in_discovery) === 1, x: Number(row.x), y: Number(row.y),
+    inDiscovery: Number(row.in_discovery) === 1, siteBuilt: Number(row.site_built) === 1, x: Number(row.x), y: Number(row.y),
   }));
 }
 
@@ -114,6 +116,12 @@ export async function setLeadStage(owner: string, id: string, stage: StoredLead[
   const db = await getD1();
   await db.prepare("UPDATE leads SET stage = ?, is_saved = ?, updated_at = ? WHERE id = ? AND owner = ?")
     .bind(stage, stage === "Saved" ? 1 : 0, new Date().toISOString(), id, owner).run();
+}
+
+export async function setSiteBuilt(owner: string, id: string, siteBuilt: boolean) {
+  const db = await getD1();
+  await db.prepare("UPDATE leads SET site_built = ?, updated_at = ? WHERE id = ? AND owner = ? AND is_saved = 1")
+    .bind(siteBuilt ? 1 : 0, new Date().toISOString(), id, owner).run();
 }
 
 export async function clearUnsavedLeads(owner: string) {

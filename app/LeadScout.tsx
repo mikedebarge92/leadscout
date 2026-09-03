@@ -17,6 +17,7 @@ type Lead = {
   stage: "New" | "Saved" | "Prototype ready" | "Contacted";
   isSaved?: boolean;
   inDiscovery?: boolean;
+  siteBuilt?: boolean;
   website?: string;
   mapsUrl?: string;
   x: number;
@@ -89,6 +90,21 @@ export default function LeadScout() {
       fetch("/api/leads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, stage }) }).catch(() => {});
     }
     setToast(stage === "Saved" ? "Lead saved to your shortlist" : "Lead removed from saved leads");
+    window.setTimeout(() => setToast(""), 2400);
+  }
+
+  async function updateSiteBuilt(id: string, siteBuilt: boolean) {
+    const next = leads.map((lead) => lead.id === id ? { ...lead, siteBuilt } : lead);
+    setLeads(next);
+    const active = next.find((lead) => lead.id === id);
+    if (active) setSelected(active);
+    try {
+      const response = await fetch("/api/leads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, siteBuilt }) });
+      if (!response.ok) throw new Error();
+      setToast(siteBuilt ? "Marked as site built" : "Marked as not built");
+    } catch {
+      setToast("Could not update the lead");
+    }
     window.setTimeout(() => setToast(""), 2400);
   }
 
@@ -241,7 +257,7 @@ export default function LeadScout() {
             <div className="street s1" /><div className="street s2" /><div className="street s3" /><div className="street s4" />
             <div className="street s5" /><div className="street s6" /><div className="river" />
             {visible.map((lead) => (
-              <button key={lead.id} className={`map-pin ${selected.id === lead.id ? "selected" : ""}`} style={{ left: `${lead.x}%`, top: `${lead.y}%` }} onClick={() => setSelected(lead)} aria-label={`View ${lead.name}`}>
+              <button key={lead.id} className={`map-pin ${selected.id === lead.id ? "selected" : ""} ${lead.siteBuilt ? "built" : ""}`} style={{ left: `${lead.x}%`, top: `${lead.y}%` }} onClick={() => setSelected(lead)} aria-label={`View ${lead.name}`}>
                 <span>{lead.score}</span>
               </button>
             ))}
@@ -258,7 +274,7 @@ export default function LeadScout() {
             <div className="lead-list">
               {visible.length === 0 && <div className="empty-saved"><span>♡</span><h3>No saved leads yet</h3><p>Open Discover and save the businesses you want to pursue.</p><button onClick={() => switchView("discover")}>Browse leads</button></div>}
               {visible.map((lead) => (
-                <article key={lead.id} className={`lead-card ${selected.id === lead.id ? "active" : ""}`} onClick={() => setSelected(lead)}>
+                <article key={lead.id} className={`lead-card ${selected.id === lead.id ? "active" : ""} ${lead.siteBuilt ? "site-built" : ""}`} onClick={() => setSelected(lead)}>
                   <div className="score">{lead.score}</div>
                   <div className="lead-main">
                     <div className="lead-title"><h3>{lead.name}</h3><span className={lead.issue === "No website" ? "no-site" : "old-site"}>{lead.issue}</span></div>
@@ -267,6 +283,7 @@ export default function LeadScout() {
                     <p className="reason">{lead.reason}</p>
                     <a className="research-link" href={googleSearchUrl(lead)} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Google search ↗</a>
                     {(lead.isSaved ?? lead.stage !== "New") && <span className="stage">✓ Saved</span>}
+                    {(lead.isSaved ?? lead.stage !== "New") && <label className="built-check" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={Boolean(lead.siteBuilt)} onChange={(event) => updateSiteBuilt(lead.id, event.target.checked)} /> Site built</label>}
                   </div>
                   <button className={`save-heart ${(lead.isSaved ?? lead.stage !== "New") ? "saved" : ""}`} aria-label={(lead.isSaved ?? lead.stage !== "New") ? "Remove saved lead" : "Save lead"} onClick={(e) => { e.stopPropagation(); updateStage(lead.id, (lead.isSaved ?? lead.stage !== "New") ? "New" : "Saved"); }}>{(lead.isSaved ?? lead.stage !== "New") ? "♥" : "♡"}</button>
                 </article>
@@ -291,6 +308,7 @@ export default function LeadScout() {
             <div className="section"><label>WHY IT&apos;S A GOOD LEAD</label>
               <ul><li><span>✓</span> 4.5+ rating with strong local trust</li><li><span>✓</span> {selected.reviews} reviews show proven demand</li><li><span>✓</span> Clear opportunity to improve conversion</li></ul>
             </div>
+            {(selected.isSaved ?? selected.stage !== "New") && <label className="detail-built-check"><input type="checkbox" checked={Boolean(selected.siteBuilt)} onChange={(event) => updateSiteBuilt(selected.id, event.target.checked)} /><span><strong>Site built</strong><small>Turns this lead green everywhere</small></span></label>}
             <button className={(selected.isSaved ?? selected.stage !== "New") ? "remove-saved-button" : "save-lead-button"} onClick={() => updateStage(selected.id, (selected.isSaved ?? selected.stage !== "New") ? "New" : "Saved")}>{(selected.isSaved ?? selected.stage !== "New") ? "Remove from saved leads" : "Save this lead"} <span>{(selected.isSaved ?? selected.stage !== "New") ? "×" : "♥"}</span></button>
           </aside>
         </section>
