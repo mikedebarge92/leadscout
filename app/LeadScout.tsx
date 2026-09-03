@@ -174,6 +174,10 @@ export default function LeadScout() {
     if (first) setSelected(first);
   }
 
+  function googleSearchUrl(lead: Lead) {
+    return `https://www.google.com/search?q=${encodeURIComponent(`${lead.name} ${lead.address}`)}`;
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -261,6 +265,7 @@ export default function LeadScout() {
                     <p>{lead.category} · {lead.area}</p>
                     <div className="rating"><span>★</span> {lead.rating} <small>({lead.reviews} reviews)</small></div>
                     <p className="reason">{lead.reason}</p>
+                    <a className="research-link" href={googleSearchUrl(lead)} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Google search ↗</a>
                     {(lead.isSaved ?? lead.stage !== "New") && <span className="stage">✓ Saved</span>}
                   </div>
                   <button className={`save-heart ${(lead.isSaved ?? lead.stage !== "New") ? "saved" : ""}`} aria-label={(lead.isSaved ?? lead.stage !== "New") ? "Remove saved lead" : "Save lead"} onClick={(e) => { e.stopPropagation(); updateStage(lead.id, (lead.isSaved ?? lead.stage !== "New") ? "New" : "Saved"); }}>{(lead.isSaved ?? lead.stage !== "New") ? "♥" : "♡"}</button>
@@ -278,10 +283,10 @@ export default function LeadScout() {
             <div className="detail-actions compact-actions">
               <a href={`tel:${selected.phone}`}>☎ <span>Call</span></a>
               <button onClick={() => updateStage(selected.id, (selected.isSaved ?? selected.stage !== "New") ? "New" : "Saved")}>{(selected.isSaved ?? selected.stage !== "New") ? "♥" : "♡"} <span>{(selected.isSaved ?? selected.stage !== "New") ? "Remove" : "Save"}</span></button>
-              {selected.mapsUrl ? <a href={selected.mapsUrl} target="_blank" rel="noreferrer">⌖ <span>Maps</span></a> : <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.address)}`} target="_blank" rel="noreferrer">⌖ <span>Maps</span></a>}
+              <a href={googleSearchUrl(selected)} target="_blank" rel="noreferrer">G <span>Search</span></a>
             </div>
             <div className="section"><label>CONTACT</label><p>⌖ {selected.address}</p><p>☎ {selected.phone}</p></div>
-            {(selected.website || selected.mapsUrl) && <div className="external-links">{selected.website && <a href={selected.website} target="_blank" rel="noreferrer">Visit website ↗</a>}{selected.mapsUrl && <a href={selected.mapsUrl} target="_blank" rel="noreferrer">Google Maps ↗</a>}</div>}
+            <div className="external-links">{selected.website && <a href={selected.website} target="_blank" rel="noreferrer">Visit website ↗</a>}{selected.mapsUrl ? <a href={selected.mapsUrl} target="_blank" rel="noreferrer">Google Maps ↗</a> : <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.address)}`} target="_blank" rel="noreferrer">Google Maps ↗</a>}</div>
             <div className="section"><label>WEBSITE SIGNAL</label><div className="signal"><span>!</span><div><strong>{selected.issue}</strong><p>{selected.reason}</p>{selected.website && <small className="audit-proof">Verified from the site’s technical markup</small>}</div></div></div>
             <div className="section"><label>WHY IT&apos;S A GOOD LEAD</label>
               <ul><li><span>✓</span> 4.5+ rating with strong local trust</li><li><span>✓</span> {selected.reviews} reviews show proven demand</li><li><span>✓</span> Clear opportunity to improve conversion</li></ul>
