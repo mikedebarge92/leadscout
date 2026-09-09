@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { headers } from "next/headers";
-import { getCredential, saveLeads, type StoredLead } from "../../../db/store";
+import { getCredential, listLeads, saveLeads, type StoredLead } from "../../../db/store";
 
 type Place = {
   id: string;
@@ -146,9 +146,10 @@ export async function POST(request: Request) {
       score, phone: place.nationalPhoneNumber || "Phone not listed",
       address: place.formattedAddress || area, website: place.websiteUri, mapsUrl: place.googleMapsUri,
       reason: noWebsite ? "Strong local demand with no owned web presence" : audit.reason,
-      stage: "New", isSaved: false, inDiscovery: true, siteBuilt: false, x: hashPosition(place.id, 11), y: hashPosition(place.id, 37),
+      stage: "New", isSaved: false, inDiscovery: true, isDismissed: false, siteBuilt: false, x: hashPosition(place.id, 11), y: hashPosition(place.id, 37),
     };
   }).sort((a, b) => b.score - a.score);
   await saveLeads(owner, leads);
-  return Response.json({ leads, scanned: candidates.length, qualified: leads.length, queries: queries.length, statewide: isCaliforniaStatewide });
+  const currentLeads = (await listLeads(owner)).filter((lead) => lead.inDiscovery);
+  return Response.json({ leads: currentLeads, scanned: candidates.length, qualified: currentLeads.length, queries: queries.length, statewide: isCaliforniaStatewide });
 }

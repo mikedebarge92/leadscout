@@ -17,6 +17,7 @@ export type StoredLead = {
   stage: "New" | "Saved" | "Prototype ready" | "Contacted";
   isSaved: boolean;
   inDiscovery: boolean;
+  isDismissed: boolean;
   siteBuilt: boolean;
   x: number;
   y: number;
@@ -47,6 +48,7 @@ export async function getD1() {
         stage TEXT NOT NULL DEFAULT 'New',
         is_saved INTEGER NOT NULL DEFAULT 0,
         in_discovery INTEGER NOT NULL DEFAULT 1,
+        is_dismissed INTEGER NOT NULL DEFAULT 0,
         site_built INTEGER NOT NULL DEFAULT 0,
         x INTEGER NOT NULL,
         y INTEGER NOT NULL,
@@ -85,30 +87,32 @@ export async function saveLeads(owner: string, leads: StoredLead[]) {
   const now = new Date().toISOString();
   await db.batch([
     db.prepare("UPDATE leads SET in_discovery = 0 WHERE owner = ?").bind(owner),
-    db.prepare("DELETE FROM leads WHERE owner = ? AND is_saved = 0").bind(owner),
+    db.prepare("DELETE FROM leads WHERE owner = ? AND is_saved = 0 AND is_dismissed = 0").bind(owner),
   ]);
   const statements = leads.map((lead) => db.prepare(`INSERT INTO leads
-    (id, owner, name, category, area, rating, reviews, issue, score, phone, address, website, maps_url, reason, stage, is_saved, in_discovery, site_built, x, y, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT stage FROM leads WHERE id = ? AND owner = ?), ?), COALESCE((SELECT is_saved FROM leads WHERE id = ? AND owner = ?), 0), 1, COALESCE((SELECT site_built FROM leads WHERE id = ? AND owner = ?), 0), ?, ?, ?, ?)
+    (id, owner, name, category, area, rating, reviews, issue, score, phone, address, website, maps_url, reason, stage, is_saved, in_discovery, is_dismissed, site_built, x, y, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 0, 0, ?, ?, ?, ?)
     ON CONFLICT(id, owner) DO UPDATE SET
       name=excluded.name, category=excluded.category, area=excluded.area, rating=excluded.rating,
       reviews=excluded.reviews, issue=excluded.issue, score=excluded.score, phone=excluded.phone,
       address=excluded.address, website=excluded.website, maps_url=excluded.maps_url,
-      reason=excluded.reason, in_discovery=1, updated_at=excluded.updated_at`)
-    .bind(lead.id, owner, lead.name, lead.category, lead.area, lead.rating, lead.reviews, lead.issue, lead.score, lead.phone, lead.address, lead.website ?? null, lead.mapsUrl ?? null, lead.reason, lead.id, owner, lead.stage, lead.id, owner, lead.id, owner, lead.x, lead.y, now, now));
+      reason=excluded.reason, in_discovery=CASE WHEN leads.is_dismissed = 1 THEN 0 ELSE 1 END,
+      updated_at=excluded.updated_at`)
+    .bind(lead.id, owner, lead.name, lead.category, lead.area, lead.rating, lead.reviews, lead.issue, lead.score, lead.phone, lead.address, lead.website ?? null, lead.mapsUrl ?? null, lead.reason, lead.stage, lead.x, lead.y, now, now));
   if (statements.length) await db.batch(statements);
 }
 
 export async function listLeads(owner: string): Promise<StoredLead[]> {
   const db = await getD1();
-  const result = await db.prepare("SELECT * FROM leads WHERE owner = ? AND (is_saved = 1 OR in_discovery = 1) ORDER BY score DESC, updated_at DESC").bind(owner).all();
+  const result = await db.prepare("SELECT * FROM leads WHERE owner = ? AND is_dismissed = 0 AND (is_saved = 1 OR in_discovery = 1) ORDER BY score DESC, updated_at DESC").bind(owner).all();
   return result.results.map((row) => ({
     id: String(row.id), name: String(row.name), category: String(row.category), area: String(row.area),
     rating: Number(row.rating), reviews: Number(row.reviews), issue: row.issue as StoredLead["issue"],
     score: Number(row.score), phone: String(row.phone), address: String(row.address),
     website: row.website ? String(row.website) : undefined, mapsUrl: row.maps_url ? String(row.maps_url) : undefined,
     reason: String(row.reason), stage: row.stage as StoredLead["stage"], isSaved: Number(row.is_saved) === 1,
-    inDiscovery: Number(row.in_discovery) === 1, siteBuilt: Number(row.site_built) === 1, x: Number(row.x), y: Number(row.y),
+    inDiscovery: Number(row.in_discovery) === 1, isDismissed: Number(row.is_dismissed) === 1,
+    siteBuilt: Number(row.site_built) === 1, x: Number(row.x), y: Number(row.y),
   }));
 }
 
@@ -124,11 +128,18 @@ export async function setSiteBuilt(owner: string, id: string, siteBuilt: boolean
     .bind(siteBuilt ? 1 : 0, new Date().toISOString(), id, owner).run();
 }
 
+export async function dismissLead(owner: string, id: string) {
+  const db = await getD1();
+  const result = await db.prepare("UPDATE leads SET is_saved = 0, in_discovery = 0, is_dismissed = 1, updated_at = ? WHERE id = ? AND owner = ?")
+    .bind(new Date().toISOString(), id, owner).run();
+  return result.meta.changes ?? 0;
+}
+
 export async function clearUnsavedLeads(owner: string) {
   const db = await getD1();
   const result = await db.batch([
     db.prepare("UPDATE leads SET in_discovery = 0 WHERE owner = ? AND in_discovery = 1").bind(owner),
-    db.prepare("DELETE FROM leads WHERE owner = ? AND is_saved = 0").bind(owner),
+    db.prepare("DELETE FROM leads WHERE owner = ? AND is_saved = 0 AND is_dismissed = 0").bind(owner),
   ]);
   return result.reduce((total, entry) => total + (entry.meta.changes ?? 0), 0);
 }

@@ -18,6 +18,7 @@ export const leads = sqliteTable("leads", {
   stage: text("stage").notNull().default("New"),
   isSaved: integer("is_saved").notNull().default(0),
   inDiscovery: integer("in_discovery").notNull().default(1),
+  isDismissed: integer("is_dismissed").notNull().default(0),
   siteBuilt: integer("site_built").notNull().default(0),
   x: integer("x").notNull(),
   y: integer("y").notNull(),

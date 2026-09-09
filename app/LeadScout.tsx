@@ -17,6 +17,7 @@ type Lead = {
   stage: "New" | "Saved" | "Prototype ready" | "Contacted";
   isSaved?: boolean;
   inDiscovery?: boolean;
+  isDismissed?: boolean;
   siteBuilt?: boolean;
   website?: string;
   mapsUrl?: string;
@@ -146,6 +147,24 @@ export default function LeadScout() {
       setToast("Could not clear results");
       window.setTimeout(() => setToast(""), 2600);
     }
+  }
+
+  async function deleteLead(id: string, name: string) {
+    if (!window.confirm(`Delete ${name}? It will also be hidden from future searches.`)) return;
+    try {
+      if (!id.startsWith("demo-")) {
+        const response = await fetch(`/api/leads?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+        if (!response.ok) throw new Error();
+      }
+      const next = leads.filter((lead) => lead.id !== id);
+      setLeads(next);
+      const nextVisible = next.find((lead) => view === "discover" ? lead.inDiscovery !== false : (lead.isSaved ?? lead.stage !== "New"));
+      if (nextVisible) setSelected(nextVisible);
+      setToast("Lead deleted and hidden from future searches");
+    } catch {
+      setToast("Could not delete the lead");
+    }
+    window.setTimeout(() => setToast(""), 2600);
   }
 
   async function connectService(service: "googlePlaces" | "resend") {
@@ -285,13 +304,16 @@ export default function LeadScout() {
                     {(lead.isSaved ?? lead.stage !== "New") && <span className="stage">✓ Saved</span>}
                     {(lead.isSaved ?? lead.stage !== "New") && <label className="built-check" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={Boolean(lead.siteBuilt)} onChange={(event) => updateSiteBuilt(lead.id, event.target.checked)} /> Site built</label>}
                   </div>
-                  <button className={`save-heart ${(lead.isSaved ?? lead.stage !== "New") ? "saved" : ""}`} aria-label={(lead.isSaved ?? lead.stage !== "New") ? "Remove saved lead" : "Save lead"} onClick={(e) => { e.stopPropagation(); updateStage(lead.id, (lead.isSaved ?? lead.stage !== "New") ? "New" : "Saved"); }}>{(lead.isSaved ?? lead.stage !== "New") ? "♥" : "♡"}</button>
+                  <div className="lead-card-actions">
+                    <button className={`save-heart ${(lead.isSaved ?? lead.stage !== "New") ? "saved" : ""}`} aria-label={(lead.isSaved ?? lead.stage !== "New") ? "Remove saved lead" : "Save lead"} onClick={(e) => { e.stopPropagation(); updateStage(lead.id, (lead.isSaved ?? lead.stage !== "New") ? "New" : "Saved"); }}>{(lead.isSaved ?? lead.stage !== "New") ? "♥" : "♡"}</button>
+                    <button className="delete-lead" aria-label={`Delete ${lead.name}`} onClick={(event) => { event.stopPropagation(); deleteLead(lead.id, lead.name); }}>Delete</button>
+                  </div>
                 </article>
               ))}
             </div>
           </div>
 
-          <aside className="detail-panel">
+          {visible.length > 0 && <aside className="detail-panel">
             <button className="close-detail" aria-label="Close details">×</button>
             <div className="detail-score"><span>{selected.score}</span><div><small>OPPORTUNITY</small><strong>Excellent fit</strong></div></div>
             <p className="detail-category">{selected.category} · {selected.area}</p>
@@ -310,7 +332,8 @@ export default function LeadScout() {
             </div>
             {(selected.isSaved ?? selected.stage !== "New") && <label className="detail-built-check"><input type="checkbox" checked={Boolean(selected.siteBuilt)} onChange={(event) => updateSiteBuilt(selected.id, event.target.checked)} /><span><strong>Site built</strong><small>Turns this lead green everywhere</small></span></label>}
             <button className={(selected.isSaved ?? selected.stage !== "New") ? "remove-saved-button" : "save-lead-button"} onClick={() => updateStage(selected.id, (selected.isSaved ?? selected.stage !== "New") ? "New" : "Saved")}>{(selected.isSaved ?? selected.stage !== "New") ? "Remove from saved leads" : "Save this lead"} <span>{(selected.isSaved ?? selected.stage !== "New") ? "×" : "♥"}</span></button>
-          </aside>
+            <button className="delete-lead-button" onClick={() => deleteLead(selected.id, selected.name)}>Delete lead permanently</button>
+          </aside>}
         </section>
       </main>
 

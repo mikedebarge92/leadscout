@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { clearUnsavedLeads, listLeads, setLeadStage, setSiteBuilt } from "../../../db/store";
+import { clearUnsavedLeads, dismissLead, listLeads, setLeadStage, setSiteBuilt } from "../../../db/store";
 
 async function owner() {
   return (await headers()).get("oai-authenticated-user-email") ?? "local-owner";
@@ -23,7 +23,12 @@ export async function PATCH(request: Request) {
   return Response.json({ ok: true });
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (id) {
+    const deleted = await dismissLead(await owner(), id);
+    return Response.json({ ok: true, deleted });
+  }
   const cleared = await clearUnsavedLeads(await owner());
   return Response.json({ ok: true, cleared });
 }
