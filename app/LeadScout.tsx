@@ -124,7 +124,7 @@ export default function LeadScout() {
       if (result.leads[0]) setSelected(result.leads[0]);
       setRunning(false);
       setSearchOpen(false);
-      setToast(`Found ${result.qualified} qualified leads after checking ${result.scanned} businesses`);
+      setToast(`Found ${result.qualified} qualified leads after checking ${result.scanned} businesses across ${result.queries} targeted searches`);
       window.setTimeout(() => setToast(""), 2600);
     } catch (error) {
       setRunning(false);
@@ -322,6 +322,7 @@ export default function LeadScout() {
           <div className="field-row"><label>Radius<select value={radius} onChange={(e) => setRadius(e.target.value)}><option>2 miles</option><option>5 miles</option><option>10 miles</option><option>25 miles</option></select></label>
           <label>Business name or type<input list="business-search-suggestions" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. roofers or Acme Roofing" /><datalist id="business-search-suggestions"><option value="All local businesses" /><option value="Home services" /><option value="Health & wellness" /><option value="Food & hospitality" /><option value="Professional services" /><option value="Roofing contractors" /><option value="Dentists" /><option value="Landscapers" /><option value="Auto repair shops" /></datalist></label></div>
           <small className="field-hint">Enter a precise category or an exact business name. LeadScout searches it as written.</small>
+          {/^(california|ca)$/i.test(area.trim()) && <small className="statewide-note">Statewide mode will scan major California markets instead of treating the state as one local area.</small>}
           <label>Minimum Google reviews<input type="number" min={10} value={minReviews} onChange={(e) => setMinReviews(Number(e.target.value))} /></label>
           <div className="check-row"><span>Website signal</span><label><input type="checkbox" checked={includeNoWebsite} onChange={(e) => setIncludeNoWebsite(e.target.checked)} /> No website</label><label><input type="checkbox" checked={includeOutdated} onChange={(e) => setIncludeOutdated(e.target.checked)} /> Outdated website</label></div>
           <button className="run-button" onClick={runSearch} disabled={running || (!includeNoWebsite && !includeOutdated)}>{running ? "Scanning businesses & websites…" : "Find qualified leads →"}</button>

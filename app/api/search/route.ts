@@ -14,6 +14,23 @@ type Place = {
   primaryTypeDisplayName?: { text?: string };
 };
 
+const CALIFORNIA_MARKETS = [
+  "Los Angeles, CA", "San Diego, CA", "San Jose, CA", "Sacramento, CA",
+  "Fresno, CA", "Bakersfield, CA", "Riverside, CA", "Oakland, CA",
+];
+
+const CONSTRUCTION_TERMS = [
+  "general contractor", "construction company", "remodeling contractor", "concrete contractor",
+];
+
+async function inBatches<T, R>(items: T[], size: number, task: (item: T) => Promise<R>) {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += size) {
+    results.push(...await Promise.all(items.slice(index, index + size).map(task)));
+  }
+  return results;
+}
+
 function safeWebsite(url: string) {
   try {
     const parsed = new URL(url);
@@ -72,19 +89,29 @@ export async function POST(request: Request) {
     "Food & hospitality": ["bakery", "restaurant", "cafe", "caterer", "event venue"],
     "Professional services": ["accountant", "law firm", "insurance agency", "real estate agency", "financial advisor"],
   };
-  const queries = verticals[category] ?? [category];
+  const isCaliforniaStatewide = /^(california|ca|california,?\s*usa)$/i.test(area.trim());
+  const isConstruction = /construct|contractor|builder|remodel/i.test(category);
+  const categoryTerms = isConstruction ? CONSTRUCTION_TERMS : (verticals[category] ?? [category]);
+  const markets = isCaliforniaStatewide ? CALIFORNIA_MARKETS : [area];
+  const queries = markets.flatMap((market) => categoryTerms.map((term) => ({ term, market })));
   const coordinateMatch = area.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
   const radiusMeters = Math.min(50000, Math.max(1600, Number.parseFloat(input.radius || "5") * 1609.344));
   const locationBias = coordinateMatch ? { circle: { center: { latitude: Number(coordinateMatch[1]), longitude: Number(coordinateMatch[2]) }, radius: radiusMeters } } : undefined;
-  const responses = await Promise.all(queries.map((term) => fetch("https://places.googleapis.com/v1/places:searchText", {
+  const responses = await inBatches(queries, 5, ({ term, market }) => fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": googleKey,
       "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.websiteUri,places.googleMapsUri,places.primaryTypeDisplayName",
     },
-    body: JSON.stringify({ textQuery: coordinateMatch ? term : `${term} in ${area}`, pageSize: Math.min(20, Number(input.limit || 20)), ...(locationBias ? { locationBias } : {}) }),
-  })));
+    body: JSON.stringify({
+      textQuery: coordinateMatch ? term : `${term} in ${market}`,
+      pageSize: Math.min(20, Number(input.limit || 20)),
+      regionCode: "US",
+      includePureServiceAreaBusinesses: true,
+      ...(locationBias ? { locationBias } : {}),
+    }),
+  }));
   const failed = responses.find((response) => !response.ok);
   if (failed) {
     const detail = await failed.text();
@@ -94,6 +121,7 @@ export async function POST(request: Request) {
   const unique = new Map<string, Place>();
   for (const place of payloads.flatMap((payload) => payload.places ?? [])) unique.set(place.id, place);
   const candidates = [...unique.values()]
+    .filter((place) => !isCaliforniaStatewide || !place.formattedAddress || /\bCA\b|California/i.test(place.formattedAddress))
     .filter((place) => (place.userRatingCount ?? 0) >= minReviews)
     .sort((a, b) => (b.userRatingCount ?? 0) - (a.userRatingCount ?? 0));
   const noSiteCandidates = candidates.filter((place) => !place.websiteUri);
@@ -122,5 +150,5 @@ export async function POST(request: Request) {
     };
   }).sort((a, b) => b.score - a.score);
   await saveLeads(owner, leads);
-  return Response.json({ leads, scanned: candidates.length, qualified: leads.length, queries: queries.length });
+  return Response.json({ leads, scanned: candidates.length, qualified: leads.length, queries: queries.length, statewide: isCaliforniaStatewide });
 }

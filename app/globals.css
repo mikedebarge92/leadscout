@@ -115,6 +115,7 @@ kbd { font-size:8px;background:#f7f4ed;border:1px solid #d9d3c8;border-radius:4p
 .modal>label,.field-row label { display:flex;flex-direction:column;gap:6px;font-size:8px;font-weight:bold;letter-spacing:.7px;color:#67655e;margin-bottom:13px;flex:1; }
 .modal input,.modal select,.modal textarea { border:1px solid #d6d0c5;background:#fff;border-radius:6px;padding:10px;color:#32332f;outline:none; }
 .field-hint{display:block;color:#7f7c74;font-size:8px;line-height:1.4;margin:-7px 0 13px;padding-left:2px}
+.statewide-note{display:block;background:#e6eee5;color:#4f6e55;border-radius:6px;padding:8px 9px;font-size:8px;line-height:1.4;margin:-5px 0 13px}
 .modal textarea{min-height:90px;resize:vertical;line-height:1.5}.field-row{display:flex;gap:12px}.check-row{border:1px solid #ddd7cc;border-radius:7px;padding:11px;margin-bottom:15px;display:flex;align-items:center;gap:13px;font-size:9px}.check-row>span{font-weight:bold;margin-right:auto}.check-row label{display:flex;gap:5px;align-items:center}
 .run-button { width:100%;height:42px;border:0;border-radius:6px;background:var(--coral);color:white;font-size:10px;font-weight:bold;cursor:pointer; }.run-button:disabled{opacity:.65}
 .api-note { display:block;text-align:center;color:#949087;font-size:8px;margin-top:10px; }
