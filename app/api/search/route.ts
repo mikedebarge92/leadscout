@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   if (!googleKey) return Response.json({ error: "Google Places is not connected", code: "NOT_CONNECTED" }, { status: 503 });
   const input = await request.json() as { area?: string; category?: string; minReviews?: number; limit?: number; radius?: string; includeNoWebsite?: boolean; includeOutdated?: boolean };
   const area = String(input.area || "Sacramento, CA").slice(0, 120);
-  const category = String(input.category || "All local businesses").slice(0, 80);
+  const category = String(input.category || "All local businesses").trim().slice(0, 80) || "All local businesses";
   const minReviews = Math.max(10, Math.min(10000, Number(input.minReviews || 10)));
   const verticals: Record<string, string[]> = {
     "All local businesses": ["plumber", "landscaper", "auto repair shop", "dentist", "pet groomer", "barber shop", "bakery", "roofing contractor"],
