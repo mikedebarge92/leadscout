@@ -55,6 +55,7 @@ export default function LeadScout() {
   const [deliveryEmail, setDeliveryEmail] = useState("");
   const [googleKey, setGoogleKey] = useState("");
   const [resendKey, setResendKey] = useState("");
+  const [editingGoogleKey, setEditingGoogleKey] = useState(false);
   const [connecting, setConnecting] = useState("");
   const [status, setStatus] = useState({ googlePlaces: false, email: false, deliveryEmail: false, mode: "demo", vaultReady: false });
 
@@ -184,7 +185,10 @@ export default function LeadScout() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Connection failed");
       setStatus((current) => ({ ...current, [service === "googlePlaces" ? "googlePlaces" : "email"]: true, mode: service === "googlePlaces" ? "live" : current.mode }));
-      if (service === "googlePlaces") setGoogleKey(""); else setResendKey("");
+      if (service === "googlePlaces") {
+        setGoogleKey("");
+        setEditingGoogleKey(false);
+      } else setResendKey("");
       setToast(`${service === "googlePlaces" ? "Google Places" : "Resend"} connected successfully`);
       window.setTimeout(() => setToast(""), 2600);
     } catch (error) {
@@ -359,12 +363,12 @@ export default function LeadScout() {
           <button className="modal-close" onClick={() => setSettingsOpen(false)}>×</button>
           <p className="eyebrow">CONNECTIONS & DELIVERY</p><h2>Make LeadScout live</h2><p className="modal-copy">Connect your accounts here. Keys are tested, encrypted, and never shown again.</p>
           <div className="connection-list">
-            <div><span className={status.googlePlaces ? "connected" : ""}>{status.googlePlaces ? "✓" : "!"}</span><p><strong>Google Places</strong><small>{status.googlePlaces ? "Connected · live searches ready" : "Not connected · demo results only"}</small></p></div>
+            <div><span className={status.googlePlaces ? "connected" : ""}>{status.googlePlaces ? "✓" : "!"}</span><p><strong>Google Places</strong><small>{status.googlePlaces ? "Connected · live searches ready" : "Not connected · demo results only"}</small></p>{status.googlePlaces && <button className="connection-action" onClick={() => setEditingGoogleKey((current) => !current)}>{editingGoogleKey ? "Cancel" : "Update key"}</button>}</div>
             <div><span className={status.email ? "connected" : ""}>{status.email ? "✓" : "!"}</span><p><strong>Resend email</strong><small>{status.email ? "Connected · delivery ready" : "Not connected · daily email paused"}</small></p></div>
           </div>
-          {!status.googlePlaces && <div className="credential-field">
-            <label>Google Places API key<input type="password" autoComplete="off" value={googleKey} onChange={(e) => setGoogleKey(e.target.value)} placeholder="AIza…" /></label>
-            <button onClick={() => connectService("googlePlaces")} disabled={connecting === "googlePlaces"}>{connecting === "googlePlaces" ? "Testing…" : "Connect"}</button>
+          {(!status.googlePlaces || editingGoogleKey) && <div className="credential-field">
+            <label>{status.googlePlaces ? "New Google Places API key" : "Google Places API key"}<input type="password" autoComplete="off" value={googleKey} onChange={(e) => setGoogleKey(e.target.value)} placeholder="AIza…" /></label>
+            <button onClick={() => connectService("googlePlaces")} disabled={connecting === "googlePlaces"}>{connecting === "googlePlaces" ? "Testing…" : status.googlePlaces ? "Replace key" : "Connect"}</button>
           </div>}
           {!status.email && <div className="credential-field">
             <label>Resend API key<input type="password" autoComplete="off" value={resendKey} onChange={(e) => setResendKey(e.target.value)} placeholder="re_…" /></label>
