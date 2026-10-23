@@ -1,98 +1,98 @@
-# vinext-starter
+# LeadScout
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+LeadScout is a portfolio-stage local-business prospecting application. It helps a small web-services team find well-reviewed businesses with no website or a technically outdated one, save promising accounts, and prepare a daily research queue.
 
-## Prerequisites
+## Business Problem
 
-- Node.js `>=22.13.0`
+Finding credible local businesses that may need a website is labor-intensive. A researcher must search multiple categories and markets, inspect each listing, review its web presence, avoid previously dismissed accounts, and keep saved opportunities organized.
 
-## Quick Start
+## Solution
+
+LeadScout searches Google Places, evaluates website signals, ranks qualified businesses, and stores each user's discovery and saved-lead state. It supports configurable categories, locations, review thresholds, live API connections, daily-email settings, and permanent dismissal of unsuitable leads.
+
+## Technical Implementation
+
+- Next.js 16, React 19, TypeScript, and CSS
+- vinext/Vite targeting a Cloudflare-compatible worker runtime
+- Google Places Text Search API for business discovery
+- Server-side website checks for HTTPS, responsive markup, obsolete HTML, recency, and conversion-path signals
+- Cloudflare D1 with Drizzle ORM for leads, settings, and encrypted service credentials
+- Web Crypto AES-GCM encryption for API credentials stored through the application
+- Resend API integration for daily lead-email delivery
+- Workspace identity headers to scope data by signed-in user
+- Node smoke tests and ESLint
+
+```text
+Browser -> Next.js API routes -> Google Places / website checks / Resend
+   |               |
+   |               +-> encrypted credentials
+   |               +-> D1 + Drizzle lead state
+   +-> discovery, saved leads, settings, qualification actions
+```
+
+## Business Value
+
+The application demonstrates how a repeatable research workflow could reduce manual prospecting, surface businesses with strong social proof, and maintain a cleaner handoff from discovery to prototype creation or outreach. No revenue or conversion lift has been measured.
+
+## My Role
+
+The project owner defined the prospecting problem, qualification rules, market and category workflow, saved-lead stages, and operational requirements. The application was built and refined with AI-assisted development tools, with the owner directing requirements, testing functionality, and choosing integrations. This repository does not claim unaided authorship of every line of code.
+
+## Verified Results
+
+- The application implements live Google Places discovery and server-side site checks.
+- Per-user lead, setting, and encrypted credential persistence is implemented for D1.
+- Daily-email delivery logic is implemented with authentication and HTML escaping.
+- Demo leads use fictional names and `555` phone numbers.
+- Fit scores and website-quality classifications are heuristics; they are not verified sales outcomes.
+
+## Setup
+
+Prerequisites: Node.js 22.13 or later. Live features require API credentials and a configured D1 binding.
 
 ```bash
 npm install
+cp .env.example .env.local
+# Fill only the services you intend to test.
+npm run dev
+```
+
+## Environment
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `GOOGLE_PLACES_API_KEY` | Live discovery | Google Places Text Search |
+| `RESEND_API_KEY` | Daily email | Server-side Resend access |
+| `LEAD_DELIVERY_EMAIL` | Optional fallback | Default recipient when no saved recipient exists |
+| `LEAD_FROM_EMAIL` | Daily email | Verified sender identity |
+| `DAILY_SCOUT_TOKEN` | Scheduled delivery | Bearer token protecting the daily endpoint |
+| `CREDENTIAL_ENCRYPTION_KEY` | In-app connections | Key material used to encrypt stored API credentials |
+
+Never commit populated environment files. Use a strong independent value for each secret in a real environment.
+
+## Commands
+
+```bash
 npm run dev
 npm run build
+npm test
+npm run lint
+npm run db:generate
 ```
 
-This starter does not use `wrangler.jsonc`.
+## Demo and Screenshots
 
-## Included Shape
+Run `npm run dev` to explore the fictional seeded leads. A strong portfolio walkthrough shows a live search with the user's own key, website-audit reasoning, saving and dismissing a lead, marking a site as built, and configuring daily delivery.
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+## Known Limitations
 
-## Workspace Auth Headers
+- Website checks use lightweight HTML signals and can produce false positives or inconclusive results.
+- Search volume, API costs, rate limits, and website robots policies require production planning.
+- The statewide construction search currently uses a fixed list of California markets and category terms.
+- There is no automated contact enrichment or outreach sending.
+- The daily endpoint requires an external scheduler; none is provisioned by this repository.
+- The credential UI and D1 persistence should receive a dedicated security review before multi-tenant production use.
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+## Project Status
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+Functional portfolio prototype. Appropriate for demonstrating API integration, research workflow design, server-side security controls, and operational automation; not represented as a production lead-generation service.
